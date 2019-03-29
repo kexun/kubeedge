@@ -32,6 +32,33 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:6da51e5ec493ad2b44cb04129e2d0a068c8fb9bd6cb5739d199573558696bb94"
+  name = "github.com/Azure/go-ansiterm"
+  packages = [
+    ".",
+    "winterm",
+  ]
+  pruneopts = "UT"
+  revision = "d6e3b3328b783f23731bc4d058875b0371ff8109"
+
+[[projects]]
+  branch = "master"
+  digest = "1:2608e06730dcdf85183940e6b5ff068b5e6fc0777a6b4a99cd0182594b030e00"
+  name = "github.com/JeffAshton/win_pdh"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "76bb4ee9f0ab50f77826f2a2ee7fb9d3880d6ec2"
+
+[[projects]]
+  digest = "1:f9ae348e1f793dcf9ed930ed47136a67343dbd6809c5c91391322267f4476892"
+  name = "github.com/Microsoft/go-winio"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "1a8911d1ed007260465c3bfbbc785ac6915a0bb8"
+  version = "v0.4.12"
+
+[[projects]]
+  branch = "master"
   digest = "1:3721a10686511b80c052323423f0de17a8c06d417dbdd3b392b1578432a33aae"
   name = "github.com/Nvveen/Gotty"
   packages = ["."]
@@ -67,6 +94,17 @@
   pruneopts = "UT"
   revision = "0ddd408d5d60ea76e320503cc7dd091992dee608"
   version = "v0.4.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:e05c7b72aeba7570b1d2f9c6dc9f0373d224b16b70fa886c504de867bffe1c2e"
+  name = "github.com/aead/chacha20"
+  packages = [
+    ".",
+    "chacha",
+  ]
+  pruneopts = "UT"
+  revision = "8b13a72661dae6e9e5dea04f344f0dc95ea29547"
 
 [[projects]]
   branch = "master"
@@ -130,12 +168,30 @@
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
+  digest = "1:1f96c755246f1b688f1b2f0d2ba6cff5a94ceb35a7c5d06f7489e5e348ce356d"
+  name = "github.com/bifurcation/mint"
+  packages = [
+    ".",
+    "syntax",
+  ]
+  pruneopts = "UT"
+  revision = "93c51c6ce11597a26e246fc33a301d62d3439cd2"
+
+[[projects]]
   digest = "1:705c40022f5c03bf96ffeb6477858d88565064485a513abcd0f11a0911546cb6"
   name = "github.com/blang/semver"
   packages = ["."]
   pruneopts = "UT"
   revision = "2ee87856327ba09384cabd113bc6b5d174e9ec0f"
   version = "v3.5.1"
+
+[[projects]]
+  digest = "1:f438d91be142877c3ad83157992c91de787ddfbddcc2a7da1ef6ef61606cadc4"
+  name = "github.com/cheekybits/genny"
+  packages = ["generic"]
+  pruneopts = "UT"
+  revision = "d2cf3cdd35ce0d789056c4bc02a4d6349c947caf"
+  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
@@ -383,6 +439,7 @@
 
 [[projects]]
   digest = "1:a81c1bc427850b9f040713c61b9df6af36edadf17297b926da0bb2f88af4b6cb"
+  name = "github.com/go-chassis/go-archaius"
   packages = [
     "core",
     "core/cast",
@@ -406,7 +463,6 @@
   ]
   pruneopts = "UT"
   revision = "eff93e5e67dbf7eab20c058db4e37e8739bf8df5"
-  version = "v1.0"
 
 [[projects]]
   branch = "master"
@@ -461,7 +517,7 @@
   version = "v1.1.1"
 
 [[projects]]
-  digest = "1:5ac24c0ad5dc117fb2b6d90d205c876ec599c09cccb702a36586680e09cb20b5"
+  digest = "1:2624ed1a47149456f5e9bb48ae8fabf66a8b772d0a5430abba34cb527c4830e3"
   name = "github.com/golang/protobuf"
   packages = [
     "proto",
@@ -472,8 +528,8 @@
     "ptypes/timestamp",
   ]
   pruneopts = "UT"
-  revision = "aa810b61a9c79d51363740d207bb46cf8e620ed5"
-  version = "v1.2.0"
+  revision = "b5d812f8a3706043e23a9cd5babf2e5423744d30"
+  version = "v1.3.1"
 
 [[projects]]
   digest = "1:6108fc1b5178611a58c3ee7f10e819e62f7cfa7e6bce1608ff86c992e912c677"
@@ -554,6 +610,14 @@
   version = "v0.2.0"
 
 [[projects]]
+  digest = "1:c79fb010be38a59d657c48c6ba1d003a8aa651fa56b579d959d74573b7dff8e1"
+  name = "github.com/gorilla/context"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "08b5f424b9271eedf6f9f0ce86cb9396ed337a42"
+  version = "v1.1.1"
+
+[[projects]]
   digest = "1:e73f5b0152105f18bc131fba127d9949305c8693f8a762588a82a48f61756f5f"
   name = "github.com/gorilla/mux"
   packages = ["."]
@@ -624,6 +688,14 @@
   revision = "f2b4162afba35581b6d4a50d3b8f34e33c144682"
 
 [[projects]]
+  digest = "1:31e761d97c76151dde79e9d28964a812c46efc5baee4085b86f68f0c654450de"
+  name = "github.com/konsorten/go-windows-terminal-sequences"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "f55edac94c9bbba5d6182a4be46d86a2c9b5b50e"
+  version = "v1.0.2"
+
+[[projects]]
   digest = "1:29d28429a93b076908a36420a7ecb2bf429d24c15a4b5e2c220ea00fc84b71af"
   name = "github.com/kr/pty"
   packages = ["."]
@@ -645,6 +717,60 @@
   ]
   pruneopts = "UT"
   revision = "aec6adb4c27903ea748a901126a976ef7f821077"
+
+[[projects]]
+  digest = "1:9b28bf73bfec951639ebbd22690fa2fe071c4e5fa2584ab0c35da74c54989cac"
+  name = "github.com/kubeedge/viaduct"
+  packages = [
+    "pkg/api",
+    "pkg/client",
+    "pkg/cmgr",
+    "pkg/conn",
+    "pkg/filter",
+    "pkg/lane",
+    "pkg/mux",
+    "pkg/packer",
+    "pkg/protos/message",
+    "pkg/server",
+    "pkg/translator",
+  ]
+  pruneopts = "UT"
+  revision = "183e278a34e8ca36b26d818012c2e3ec0886a678"
+
+[[projects]]
+  branch = "master"
+  digest = "1:6fe6fc7707d8c37fb305362a324462d898bc1c01eaa2bfe15383ec21f6540c71"
+  name = "github.com/lucas-clemente/aes12"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "cd47fb39b79f867c6e4e5cd39cf7abd799f71670"
+
+[[projects]]
+  digest = "1:1ad9a965caa82881bd2ef1f0b155b4dc536c4f00d2d9f67d0b9b4ba6dcda21f1"
+  name = "github.com/lucas-clemente/quic-go"
+  packages = [
+    ".",
+    "internal/ackhandler",
+    "internal/congestion",
+    "internal/crypto",
+    "internal/flowcontrol",
+    "internal/handshake",
+    "internal/protocol",
+    "internal/utils",
+    "internal/wire",
+    "qerr",
+  ]
+  pruneopts = "UT"
+  revision = "714f38d5d0aff85894fd890718b991e361f03e7d"
+  version = "v0.10.1"
+
+[[projects]]
+  branch = "master"
+  digest = "1:08b3484b0665f09be0f1f699a38e877708453795df07a3d6e4cd41fa7a2cabf0"
+  name = "github.com/lucas-clemente/quic-go-certificates"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "d2f86524cced5186554df90d92529757d22c1cb6"
 
 [[projects]]
   digest = "1:3cafc6a5a1b8269605d9df4c6956d43d8011fc57f266ca6b9d04da6c09dee548"
@@ -888,12 +1014,28 @@
   version = "v1.0.0"
 
 [[projects]]
+  digest = "1:026648b32e84057740dde0a1b309b9b90f19afcc6ab2faf98998d0ac518bfe3a"
+  name = "github.com/rkt/rkt"
+  packages = ["api/v1alpha"]
+  pruneopts = "UT"
+  revision = "e04dd994baa1051f1205578d12d69eec83dbb905"
+  version = "v1.30.0"
+
+[[projects]]
   digest = "1:274f67cb6fed9588ea2521ecdac05a6d62a8c51c074c1fccc6a49a40ba80e925"
   name = "github.com/satori/go.uuid"
   packages = ["."]
   pruneopts = "UT"
   revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
   version = "v1.2.0"
+
+[[projects]]
+  digest = "1:76b02b3f516299ddfed21a4e7ce26cda0b9a57f14575bfe4aa2d644ea0e8e24c"
+  name = "github.com/seccomp/libseccomp-golang"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "e3496e3a417d1dc9ecdceca5af2513271fed37a0"
+  version = "v0.9.0"
 
 [[projects]]
   digest = "1:3f53e9e4dfbb664cd62940c9c4b65a2171c66acd0b7621a1a6b8e78513525a52"
@@ -985,13 +1127,15 @@
   revision = "13995c7128ccc8e51e9a6bd2b551020a27180abd"
 
 [[projects]]
-  digest = "1:ebe6182358427e951fc3f0ff1f84a290c3f9cc9edd53d79d6a63db3065abb730"
+  digest = "1:50e3f9e0dd2b7eb8f4ae39bd916b7eb11412ef8bba2c41c1b04fd477b3e49efb"
   name = "golang.org/x/crypto"
   packages = [
     "bcrypt",
     "blowfish",
+    "curve25519",
     "ed25519",
     "ed25519/internal/edwards25519",
+    "hkdf",
     "pbkdf2",
     "ssh/terminal",
   ]
@@ -1030,9 +1174,10 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:bececf436a23bf63181438c4ef4f7f47816b87ff879083d83ca1321f9001a354"
+  digest = "1:08232b2c3ccc55a20aeec26a36b63e50510c36cfdd7797dcaee3802998144509"
   name = "golang.org/x/sys"
   packages = [
+    "cpu",
     "unix",
     "windows",
   ]
@@ -1678,6 +1823,10 @@
     "github.com/kubeedge/beehive/pkg/core",
     "github.com/kubeedge/beehive/pkg/core/context",
     "github.com/kubeedge/beehive/pkg/core/model",
+    "github.com/kubeedge/viaduct/pkg/api",
+    "github.com/kubeedge/viaduct/pkg/client",
+    "github.com/kubeedge/viaduct/pkg/conn",
+    "github.com/kubeedge/viaduct/pkg/server",
     "github.com/mattn/go-sqlite3",
     "github.com/onsi/ginkgo",
     "github.com/onsi/gomega",
@@ -1686,6 +1835,7 @@
     "github.com/stretchr/testify/assert",
     "golang.org/x/net/context",
     "gopkg.in/yaml.v2",
+    "k8s.io/api/apps/v1",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/equality",
     "k8s.io/apimachinery/pkg/api/errors",

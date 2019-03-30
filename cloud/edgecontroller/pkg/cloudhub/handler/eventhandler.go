@@ -1,37 +1,26 @@
-package wsserver
+package handler
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
-	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
-
-	"github.com/kubeedge/kubeedge/cloud/edgecontroller/pkg/cloudhub/channelq"
-	hubio "github.com/kubeedge/kubeedge/cloud/edgecontroller/pkg/cloudhub/common/io"
-	emodel "github.com/kubeedge/kubeedge/cloud/edgecontroller/pkg/cloudhub/common/model"
-	"github.com/kubeedge/kubeedge/cloud/edgecontroller/pkg/cloudhub/common/util"
-
 	bhLog "github.com/kubeedge/beehive/pkg/common/log"
 	"github.com/kubeedge/beehive/pkg/core/context"
 	"github.com/kubeedge/beehive/pkg/core/model"
+	"github.com/kubeedge/kubeedge/cloud/edgecontroller/pkg/cloudhub/channelq"
+	hubio "github.com/kubeedge/kubeedge/cloud/edgecontroller/pkg/cloudhub/common/io"
+	emodel "github.com/kubeedge/kubeedge/cloud/edgecontroller/pkg/cloudhub/common/model"
 )
 
 // ExitCode exit code
 type ExitCode int
 
 const (
-	webSocketReadFail ExitCode = iota
-	webSocketWriteFail
+	hubioReadFail ExitCode = iota
+	hubioWriteFail
 	eventQueueDisconnect
 	nodeStop
 )
@@ -41,19 +30,9 @@ const (
 	MsgFormatError = "message format not correct"
 )
 
-// constants for api path
-const (
-	PathEvent = "/{project_id}/{node_id}/events"
-)
-
-// EventHandler handle all event
-var EventHandler *EventHandle
-
-//AccessHandle access handler
-type AccessHandle struct {
-	EventHandle *EventHandle
-	NodeLimit   int
-}
+// WebSocketEventHandler handle all event
+var WebSocketEventHandler *EventHandle
+var QuicEventHandler *EventHandle
 
 // EventHandle processes events between cloud and edge
 type EventHandle struct {
@@ -83,6 +62,41 @@ func trimMessage(msg *model.Message) {
 	}
 }
 
+func notifyEventQueueError(hi hubio.CloudHubIO, code ExitCode, nodeID string) {
+	if code == eventQueueDisconnect {
+		msg := model.NewMessage("").BuildRouter(emodel.GpResource, emodel.SrcCloudHub, emodel.NewResource(emodel.ResNode, nodeID, nil), emodel.OpDisConnect)
+		err := hi.WriteData(msg)
+		if err != nil {
+			bhLog.LOGGER.Errorf("fail to notify node %s event queue disconnected, reason: %s", nodeID, err.Error())
+		}
+	}
+}
+
+func constructConnectEvent(info *emodel.HubInfo, isConnected bool) *emodel.Event {
+	connected := emodel.OpConnect
+	if !isConnected {
+		connected = emodel.OpDisConnect
+	}
+	body := map[string]interface{}{
+		"event_type": connected,
+		"timestamp":  time.Now().Unix(),
+		"client_id":  info.NodeID}
+	content, _ := json.Marshal(body)
+	msg := model.NewMessage("")
+	return &emodel.Event{
+		Group:  emodel.GpResource,
+		Source: emodel.SrcCloudHub,
+		UserGroup: emodel.UserGroupInfo{
+			Resource:  emodel.NewResource(emodel.ResNode, info.NodeID, nil),
+			Operation: connected,
+		},
+		ID:        msg.GetID(),
+		ParentID:  msg.GetParentID(),
+		Timestamp: msg.GetTimestamp(),
+		Content:   string(content),
+	}
+}
+
 // EventReadLoop processes all read requests
 func (eh *EventHandle) EventReadLoop(hi hubio.CloudHubIO, info *emodel.HubInfo, stop chan ExitCode) {
 	for {
@@ -91,13 +105,13 @@ func (eh *EventHandle) EventReadLoop(hi hubio.CloudHubIO, info *emodel.HubInfo, 
 		err := hi.SetReadDeadline(time.Now().Add(time.Duration(eh.KeepaliveInterval) * time.Second))
 		if err != nil {
 			bhLog.LOGGER.Errorf("SetReadDeadline error, %s", err.Error())
-			stop <- webSocketReadFail
+			stop <- hubioReadFail
 			return
 		}
 		_, err = hi.ReadData(&msg)
 		if err != nil {
 			bhLog.LOGGER.Errorf("read error, connection for node %s will be closed, reason: %s", info.NodeID, err.Error())
-			stop <- webSocketReadFail
+			stop <- hubioReadFail
 			return
 		}
 		msg.SetResourceOperation(fmt.Sprintf("node/%s/%s", info.NodeID, msg.GetResource()), msg.GetOperation())
@@ -176,14 +190,14 @@ func (eh *EventHandle) EventWriteLoop(hi hubio.CloudHubIO, info *emodel.HubInfo,
 		err = hi.SetWriteDeadline(time.Now().Add(time.Duration(eh.WriteTimeout) * time.Second))
 		if err != nil {
 			bhLog.LOGGER.Errorf("SetWriteDeadline error, %s", err.Error())
-			stop <- webSocketWriteFail
+			stop <- hubioWriteFail
 			return
 		}
 		err = eh.webSocketWrite(hi, info.NodeID, &msg)
 		if err != nil {
 			bhLog.LOGGER.Errorf("write error, connection for node %s will be closed, affected event %s, reason %s",
 				info.NodeID, dumpEventMetadata(event), err.Error())
-			stop <- webSocketWriteFail
+			stop <- hubioWriteFail
 			return
 		}
 		events.Ack()
@@ -200,65 +214,6 @@ func (eh *EventHandle) webSocketWrite(hi hubio.CloudHubIO, nodeID string, v inte
 	defer mutex.Unlock()
 
 	return hi.WriteData(v)
-}
-
-func notifyEventQueueError(hi hubio.CloudHubIO, code ExitCode, nodeID string) {
-	if code == eventQueueDisconnect {
-		msg := model.NewMessage("").BuildRouter(emodel.GpResource, emodel.SrcCloudHub, emodel.NewResource(emodel.ResNode, nodeID, nil), emodel.OpDisConnect)
-		err := hi.WriteData(msg)
-		if err != nil {
-			bhLog.LOGGER.Errorf("fail to notify node %s event queue disconnected, reason: %s", nodeID, err.Error())
-		}
-	}
-}
-
-func constructConnectEvent(info *emodel.HubInfo, isConnected bool) *emodel.Event {
-	connected := emodel.OpConnect
-	if !isConnected {
-		connected = emodel.OpDisConnect
-	}
-	body := map[string]interface{}{
-		"event_type": connected,
-		"timestamp":  time.Now().Unix(),
-		"client_id":  info.NodeID}
-	content, _ := json.Marshal(body)
-	msg := model.NewMessage("")
-	return &emodel.Event{
-		Group:  emodel.GpResource,
-		Source: emodel.SrcCloudHub,
-		UserGroup: emodel.UserGroupInfo{
-			Resource:  emodel.NewResource(emodel.ResNode, info.NodeID, nil),
-			Operation: connected,
-		},
-		ID:        msg.GetID(),
-		ParentID:  msg.GetParentID(),
-		Timestamp: msg.GetTimestamp(),
-		Content:   string(content),
-	}
-}
-
-// ServeEvent handle the event coming from websocket
-func (ah *AccessHandle) ServeEvent(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	projectID := vars["project_id"]
-	nodeID := vars["node_id"]
-
-	if ah.EventHandle.GetNodeCount() >= ah.NodeLimit {
-		bhLog.LOGGER.Errorf("fail to serve node %s, reach node limit", nodeID)
-		http.Error(w, "too many Nodes connected", http.StatusTooManyRequests)
-		return
-	}
-
-	upgrader := websocket.Upgrader{}
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		bhLog.LOGGER.Errorf("fail to build websocket connection for node %s, reason %s", nodeID, err.Error())
-		http.Error(w, "failed to upgrade to websocket protocol", http.StatusInternalServerError)
-		return
-	}
-	info := &emodel.HubInfo{ProjectID: projectID, NodeID: nodeID}
-	hi := &hubio.JSONWSIO{conn}
-	ah.EventHandle.ServeConn(hi, info)
 }
 
 // ServeConn starts serving the incoming connection
@@ -313,20 +268,6 @@ func (eh *EventHandle) ServeConn(hi hubio.CloudHubIO, info *emodel.HubInfo) {
 	eh.EventQueue.Close(info)
 }
 
-// ServeQueueWorkload handle workload from queue
-func (ah *AccessHandle) ServeQueueWorkload(w http.ResponseWriter, r *http.Request) {
-	workload, err := ah.EventHandle.GetWorkload()
-	if err != nil {
-		bhLog.LOGGER.Errorf("%s", err.Error())
-		http.Error(w, "fail to get event queue workload", http.StatusInternalServerError)
-		return
-	}
-	_, err = io.WriteString(w, fmt.Sprintf("%f", workload))
-	if err != nil {
-		bhLog.LOGGER.Errorf("fail to write string, reason: %s", err.Error())
-	}
-}
-
 // GetNodeCount returns the number of connected Nodes
 func (eh *EventHandle) GetNodeCount() int {
 	var num int
@@ -341,71 +282,4 @@ func (eh *EventHandle) GetNodeCount() int {
 // GetWorkload returns the workload of the event queue
 func (eh *EventHandle) GetWorkload() (float64, error) {
 	return eh.EventQueue.Workload()
-}
-
-// returns if the event queue is available or not.
-// returns 0 if not available and 1 if available.
-func (ah *AccessHandle) getEventQueueAvailability() int {
-	_, err := ah.EventHandle.GetWorkload()
-	if err != nil {
-		bhLog.LOGGER.Errorf("eventq is not available, reason %s", err.Error())
-		return 0
-	}
-	return 1
-}
-
-// FilterWriter filter writer
-type FilterWriter struct{}
-
-func (f *FilterWriter) Write(p []byte) (n int, err error) {
-	output := string(p)
-	if strings.Contains(output, "http: TLS handshake error from") {
-		return 0, nil
-	}
-	return os.Stderr.Write(p)
-}
-
-// StartCloudHub starts the cloud hub service
-func StartCloudHub(config *util.Config, eventq *channelq.ChannelEventQueue) {
-	// init certificate
-	pool := x509.NewCertPool()
-	ok := pool.AppendCertsFromPEM(config.Ca)
-	if !ok {
-		panic(fmt.Errorf("fail to load ca content"))
-	}
-	cert, err := tls.X509KeyPair(config.Cert, config.Key)
-	if err != nil {
-		panic(err)
-	}
-	tlsConfig := tls.Config{
-		ClientCAs:    pool,
-		ClientAuth:   tls.RequestClientCert,
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS12,
-		CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256},
-	}
-
-	// init handler
-	ah := &AccessHandle{
-		EventHandle: &EventHandle{
-			KeepaliveInterval: config.KeepaliveInterval,
-			WriteTimeout:      config.WriteTimeout,
-			EventQueue:        eventq,
-		},
-		NodeLimit: config.NodeLimit,
-	}
-	EventHandler = ah.EventHandle
-
-	router := mux.NewRouter()
-	router.HandleFunc(PathEvent, ah.ServeEvent)
-
-	// start server
-	s := http.Server{
-		Addr:      fmt.Sprintf("%s:%d", config.Address, config.Port),
-		Handler:   router,
-		TLSConfig: &tlsConfig,
-		ErrorLog:  log.New(&FilterWriter{}, "", log.LstdFlags),
-	}
-	bhLog.LOGGER.Infof("Start cloud hub service")
-	go s.ListenAndServeTLS("", "")
 }

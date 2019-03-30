@@ -10,7 +10,7 @@ import (
 	"github.com/kubeedge/beehive/pkg/core/context"
 	"github.com/kubeedge/kubeedge/cloud/edgecontroller/pkg/cloudhub/channelq"
 	"github.com/kubeedge/kubeedge/cloud/edgecontroller/pkg/cloudhub/common/util"
-	"github.com/kubeedge/kubeedge/cloud/edgecontroller/pkg/cloudhub/wsserver"
+	"github.com/kubeedge/kubeedge/cloud/edgecontroller/pkg/cloudhub/servers"
 )
 
 type cloudHub struct {
@@ -58,9 +58,16 @@ func (a *cloudHub) Start(c *context.Context) {
 	}
 
 	eventq, err := channelq.NewChannelEventQueue(c)
+
 	// start the cloudhub server
-	wsserver.StartCloudHub(util.HubConfig, eventq)
-	wsserver.EventHandler.Context = c
+	if util.HubConfig.ProtocolWebsocket {
+		go servers.StartCloudHub(servers.PROTOCOL_WEBSOCKET, eventq, c)
+	}
+
+	if util.HubConfig.ProtocolQuic {
+		go servers.StartCloudHub(servers.PROTOCOL_QUIC, eventq, c)
+	}
+
 	stopchan := make(chan bool)
 	<-stopchan
 }

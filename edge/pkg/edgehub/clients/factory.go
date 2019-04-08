@@ -36,6 +36,8 @@ func GetClient(clientType string, config *config.EdgeHubConfig) Adapter {
 			HandshakeTimeout: config.QcConfig.HandshakeTimeout,
 			ReadDeadline:     config.QcConfig.ReadDeadline,
 			WriteDeadline:    config.QcConfig.WriteDeadline,
+			ProjectId:        config.CtrConfig.ProjectID,
+			NodeId:           config.CtrConfig.NodeID,
 		}
 		return quicclient.NewQuicClient(&quicConfig)
 	} else {

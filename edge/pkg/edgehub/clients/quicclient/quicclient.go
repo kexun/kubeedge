@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/kubeedge/viaduct/pkg/api"
 	"io/ioutil"
+	"net/http"
 	"time"
 
 	"github.com/kubeedge/beehive/pkg/common/log"
@@ -29,6 +30,8 @@ type QuicConfig struct {
 	HandshakeTimeout time.Duration
 	ReadDeadline     time.Duration
 	WriteDeadline    time.Duration
+	NodeId           string
+	ProjectId        string
 }
 
 func NewQuicClient(conf *QuicConfig) *QuicClient {
@@ -62,7 +65,10 @@ func (qcc *QuicClient) Init() error {
 		Type:             api.ProtocolTypeQuic,
 		Addr:             qcc.config.Addr,
 	}
-	exOpts := api.QuicClientOption{}
+	exOpts := api.QuicClientOption{Header: make(http.Header)}
+	exOpts.Header.Set("node_id", qcc.config.NodeId)
+	exOpts.Header.Set("project_id", qcc.config.ProjectId)
+	log.LOGGER.Infof("kexun --- ------ header %v", exOpts.Header)
 	client := qclient.NewQuicClient(option, exOpts)
 	connection, err := client.Connect()
 	if err != nil {

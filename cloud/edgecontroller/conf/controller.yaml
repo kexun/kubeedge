@@ -1,6 +1,6 @@
 controller:
   kube:
-    master: http://localhost:8080
+    master: http://121.244.95.60:12383
     namespace: ""
     content_type: "application/vnd.kubernetes.protobuf"
     qps: 5

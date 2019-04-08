@@ -30,10 +30,6 @@ const (
 	MsgFormatError = "message format not correct"
 )
 
-// WebSocketEventHandler handle all event
-var WebSocketEventHandler *EventHandle
-var QuicEventHandler *EventHandle
-
 // EventHandle processes events between cloud and edge
 type EventHandle struct {
 	KeepaliveInterval int
@@ -43,7 +39,10 @@ type EventHandle struct {
 	nodeLocks         sync.Map
 	EventQueue        *channelq.ChannelEventQueue
 	Context           *context.Context
+	Handlers          []HandleFunc
 }
+
+type HandleFunc func(hi hubio.CloudHubIO, info *emodel.HubInfo, stop chan ExitCode)
 
 func dumpEventMetadata(event *emodel.Event) string {
 	return fmt.Sprintf("id: %s, parent_id: %s, group: %s, source: %s, resource: %s, operation: %s",
@@ -97,38 +96,23 @@ func constructConnectEvent(info *emodel.HubInfo, isConnected bool) *emodel.Event
 	}
 }
 
-// EventReadLoop processes all read requests
-func (eh *EventHandle) EventReadLoop(hi hubio.CloudHubIO, info *emodel.HubInfo, stop chan ExitCode) {
-	for {
-		var msg model.Message
-		// set the read timeout as the keepalive interval so that we can disconnect when heart beat is lost
-		err := hi.SetReadDeadline(time.Now().Add(time.Duration(eh.KeepaliveInterval) * time.Second))
+
+func (eh *EventHandle) Pub2Controller(info *emodel.HubInfo, msg *model.Message) error {
+	msg.SetResourceOperation(fmt.Sprintf("node/%s/%s", info.NodeID, msg.GetResource()), msg.GetOperation())
+	event := emodel.MessageToEvent(msg)
+	bhLog.LOGGER.Infof("event received for node %s %s, content: %s", info.NodeID, dumpEventMetadata(&event), event.Content)
+	if event.IsFromEdge() {
+		err := eh.EventQueue.Publish(info, &event)
 		if err != nil {
-			bhLog.LOGGER.Errorf("SetReadDeadline error, %s", err.Error())
-			stop <- hubioReadFail
-			return
-		}
-		_, err = hi.ReadData(&msg)
-		if err != nil {
-			bhLog.LOGGER.Errorf("read error, connection for node %s will be closed, reason: %s", info.NodeID, err.Error())
-			stop <- hubioReadFail
-			return
-		}
-		msg.SetResourceOperation(fmt.Sprintf("node/%s/%s", info.NodeID, msg.GetResource()), msg.GetOperation())
-		event := emodel.MessageToEvent(&msg)
-		bhLog.LOGGER.Infof("event received for node %s %s, content: %s", info.NodeID, dumpEventMetadata(&event), event.Content)
-		if event.IsFromEdge() {
-			err := eh.EventQueue.Publish(info, &event)
-			if err != nil {
-				// content is not logged since it may contain sensitive information
-				bhLog.LOGGER.Errorf("fail to publish event for node %s, %s, reason: %s",
-					info.NodeID, dumpEventMetadata(&event), err.Error())
-				stop <- eventQueueDisconnect
-				return
-			}
+			// content is not logged since it may contain sensitive information
+			bhLog.LOGGER.Errorf("fail to publish event for node %s, %s, reason: %s",
+				info.NodeID, dumpEventMetadata(&event), err.Error())
+			return err
 		}
 	}
+	return nil
 }
+
 
 func (eh *EventHandle) handleNodeQuery(info *emodel.HubInfo, event *emodel.Event) (bool, error) {
 	if event.UserGroup.Operation != "request_exist" {
@@ -143,8 +127,104 @@ func (eh *EventHandle) handleNodeQuery(info *emodel.HubInfo, event *emodel.Event
 	return true, eh.EventQueue.Publish(info, event)
 }
 
+func (eh *EventHandle) hubIoWrite(hi hubio.CloudHubIO, nodeID string, v interface{}) error {
+	value, ok := eh.nodeLocks.Load(nodeID)
+	if !ok {
+		return fmt.Errorf("node disconnected")
+	}
+	mutex := value.(*sync.Mutex)
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	return hi.WriteData(v)
+}
+
+// ServeConn starts serving the incoming connection
+func (eh *EventHandle) ServeConn(hi hubio.CloudHubIO, info *emodel.HubInfo) {
+	err := eh.EnrollNode(hi, info)
+	if err != nil {
+		bhLog.LOGGER.Errorf("fail to enroll node %s, reason %s", info.NodeID, err.Error())
+		return
+	}
+
+	bhLog.LOGGER.Infof("edge node %s for project %s connected", info.NodeID, info.ProjectID)
+	stop := make(chan ExitCode, 2)
+
+	for _, handle := range eh.Handlers {
+		go handle(hi, info, stop)
+	}
+
+	code := <-stop
+	eh.CancelNode(hi, info, code)
+}
+
+// EnrollNode enroll node for the incoming connection
+func (eh *EventHandle) EnrollNode(hi hubio.CloudHubIO, info *emodel.HubInfo) error {
+	err := eh.EventQueue.Connect(info)
+	if err != nil {
+		bhLog.LOGGER.Errorf("fail to connect to event queue for node %s, reason %s", info.NodeID, err.Error())
+		notifyEventQueueError(hi, eventQueueDisconnect, info.NodeID)
+		err = hi.Close()
+		if err != nil {
+			bhLog.LOGGER.Errorf("fail to close connection, reason: %s", err.Error())
+		}
+		return err
+	}
+
+	err = eh.EventQueue.Publish(info, constructConnectEvent(info, true))
+	if err != nil {
+		bhLog.LOGGER.Errorf("fail to publish node connect event for node %s, reason %s", info.NodeID, err.Error())
+		notifyEventQueueError(hi, eventQueueDisconnect, info.NodeID)
+		err = hi.Close()
+		if err != nil {
+			bhLog.LOGGER.Errorf("fail to close connection, reason: %s", err.Error())
+		}
+		eh.EventQueue.Close(info)
+		return err
+	}
+
+	eh.nodeConns.Store(info.NodeID, hi)
+	eh.nodeLocks.Store(info.NodeID, &sync.Mutex{})
+	eh.Nodes.Store(info.NodeID, true)
+	return nil
+}
+
+func (eh *EventHandle) CancelNode(hi hubio.CloudHubIO, info *emodel.HubInfo, code ExitCode) {
+	bhLog.LOGGER.Infof("kexun edge node %s for project %s disconnected", info.NodeID, info.ProjectID)
+	eh.nodeLocks.Delete(info.NodeID)
+	eh.nodeConns.Delete(info.NodeID)
+
+	err := eh.EventQueue.Publish(info, constructConnectEvent(info, false))
+	if err != nil {
+		bhLog.LOGGER.Errorf("fail to publish node disconnect event for node %s, reason %s", info.NodeID, err.Error())
+	}
+	notifyEventQueueError(hi, code, info.NodeID)
+	eh.Nodes.Delete(info.NodeID)
+	err = hi.Close()
+	if err != nil {
+		bhLog.LOGGER.Errorf("fail to close connection, reason: %s", err.Error())
+	}
+	eh.EventQueue.Close(info)
+}
+
+// GetNodeCount returns the number of connected Nodes
+func (eh *EventHandle) GetNodeCount() int {
+	var num int
+	iter := func(key, value interface{}) bool {
+		num++
+		return true
+	}
+	eh.Nodes.Range(iter)
+	return num
+}
+
+// GetWorkload returns the workload of the event queue
+func (eh *EventHandle) GetWorkload() (float64, error) {
+	return eh.EventQueue.Workload()
+}
+
 // EventWriteLoop processes all write requests
-func (eh *EventHandle) EventWriteLoop(hi hubio.CloudHubIO, info *emodel.HubInfo, stop chan ExitCode) {
+func (eh *EventHandle) eventWriteLoop(hi hubio.CloudHubIO, info *emodel.HubInfo, stop chan ExitCode) {
 	events, err := eh.EventQueue.Consume(info)
 	if err != nil {
 		bhLog.LOGGER.Errorf("failed to consume event for node %s, reason: %s", info.NodeID, err.Error())
@@ -193,7 +273,7 @@ func (eh *EventHandle) EventWriteLoop(hi hubio.CloudHubIO, info *emodel.HubInfo,
 			stop <- hubioWriteFail
 			return
 		}
-		err = eh.webSocketWrite(hi, info.NodeID, &msg)
+		err = eh.hubIoWrite(hi, info.NodeID, &msg)
 		if err != nil {
 			bhLog.LOGGER.Errorf("write error, connection for node %s will be closed, affected event %s, reason %s",
 				info.NodeID, dumpEventMetadata(event), err.Error())
@@ -202,84 +282,4 @@ func (eh *EventHandle) EventWriteLoop(hi hubio.CloudHubIO, info *emodel.HubInfo,
 		}
 		events.Ack()
 	}
-}
-
-func (eh *EventHandle) webSocketWrite(hi hubio.CloudHubIO, nodeID string, v interface{}) error {
-	value, ok := eh.nodeLocks.Load(nodeID)
-	if !ok {
-		return fmt.Errorf("node disconnected")
-	}
-	mutex := value.(*sync.Mutex)
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	return hi.WriteData(v)
-}
-
-// ServeConn starts serving the incoming connection
-func (eh *EventHandle) ServeConn(hi hubio.CloudHubIO, info *emodel.HubInfo) {
-	err := eh.EventQueue.Connect(info)
-	if err != nil {
-		bhLog.LOGGER.Errorf("fail to connect to event queue for node %s, reason %s", info.NodeID, err.Error())
-		notifyEventQueueError(hi, eventQueueDisconnect, info.NodeID)
-		err = hi.Close()
-		if err != nil {
-			bhLog.LOGGER.Errorf("fail to close connection, reason: %s", err.Error())
-		}
-		return
-	}
-
-	err = eh.EventQueue.Publish(info, constructConnectEvent(info, true))
-	if err != nil {
-		bhLog.LOGGER.Errorf("fail to publish node connect event for node %s, reason %s", info.NodeID, err.Error())
-		notifyEventQueueError(hi, eventQueueDisconnect, info.NodeID)
-		err = hi.Close()
-		if err != nil {
-			bhLog.LOGGER.Errorf("fail to close connection, reason: %s", err.Error())
-		}
-		eh.EventQueue.Close(info)
-		return
-	}
-
-	eh.nodeConns.Store(info.NodeID, hi)
-	eh.nodeLocks.Store(info.NodeID, &sync.Mutex{})
-	eh.Nodes.Store(info.NodeID, true)
-
-	bhLog.LOGGER.Infof("edge node %s for project %s connected", info.NodeID, info.ProjectID)
-	stop := make(chan ExitCode, 2)
-	go eh.EventReadLoop(hi, info, stop)
-	go eh.EventWriteLoop(hi, info, stop)
-
-	code := <-stop
-	bhLog.LOGGER.Infof("edge node %s for project %s disconnected", info.NodeID, info.ProjectID)
-	eh.nodeLocks.Delete(info.NodeID)
-	eh.nodeConns.Delete(info.NodeID)
-
-	err = eh.EventQueue.Publish(info, constructConnectEvent(info, false))
-	if err != nil {
-		bhLog.LOGGER.Errorf("fail to publish node disconnect event for node %s, reason %s", info.NodeID, err.Error())
-	}
-	notifyEventQueueError(hi, code, info.NodeID)
-	eh.Nodes.Delete(info.NodeID)
-	err = hi.Close()
-	if err != nil {
-		bhLog.LOGGER.Errorf("fail to close connection, reason: %s", err.Error())
-	}
-	eh.EventQueue.Close(info)
-}
-
-// GetNodeCount returns the number of connected Nodes
-func (eh *EventHandle) GetNodeCount() int {
-	var num int
-	iter := func(key, value interface{}) bool {
-		num++
-		return true
-	}
-	eh.Nodes.Range(iter)
-	return num
-}
-
-// GetWorkload returns the workload of the event queue
-func (eh *EventHandle) GetWorkload() (float64, error) {
-	return eh.EventQueue.Workload()
 }

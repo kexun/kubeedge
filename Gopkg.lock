@@ -719,23 +719,27 @@
   revision = "aec6adb4c27903ea748a901126a976ef7f821077"
 
 [[projects]]
-  digest = "1:9b28bf73bfec951639ebbd22690fa2fe071c4e5fa2584ab0c35da74c54989cac"
+  digest = "1:43acdffacb37f382b27d21e7be9505d28bc0ea6334611bb4ff95fb6007005fec"
   name = "github.com/kubeedge/viaduct"
   packages = [
     "pkg/api",
     "pkg/client",
     "pkg/cmgr",
+    "pkg/comm",
     "pkg/conn",
     "pkg/filter",
+    "pkg/keeper",
     "pkg/lane",
     "pkg/mux",
     "pkg/packer",
     "pkg/protos/message",
     "pkg/server",
+    "pkg/smgr",
     "pkg/translator",
+    "pkg/utils",
   ]
   pruneopts = "UT"
-  revision = "183e278a34e8ca36b26d818012c2e3ec0886a678"
+  revision = "4829bcc70e989ae40dea575c3feae9bfa41e56e6"
 
 [[projects]]
   branch = "master"
@@ -1826,6 +1830,7 @@
     "github.com/kubeedge/viaduct/pkg/api",
     "github.com/kubeedge/viaduct/pkg/client",
     "github.com/kubeedge/viaduct/pkg/conn",
+    "github.com/kubeedge/viaduct/pkg/mux",
     "github.com/kubeedge/viaduct/pkg/server",
     "github.com/mattn/go-sqlite3",
     "github.com/onsi/ginkgo",

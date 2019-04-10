@@ -25,7 +25,7 @@
 #   unused-packages = true
 [[constraint]]
   name = "github.com/kubeedge/viaduct"
-  revision = "183e278a34e8ca36b26d818012c2e3ec0886a678"
+  revision = "4829bcc70e989ae40dea575c3feae9bfa41e56e6"
 
 [[constraint]]
   name = "k8s.io/client-go"

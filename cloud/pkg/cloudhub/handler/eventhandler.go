@@ -30,6 +30,20 @@ const (
 	MsgFormatError = "message format not correct"
 )
 
+// constants for api path
+const (
+	PathEvent = "/{project_id}/{node_id}/events"
+)
+
+// EventHandler handle all event
+var EventHandler *EventHandle
+
+// AccessHandle access handler
+type AccessHandle struct {
+	EventHandle *EventHandle
+	NodeLimit   int
+}
+
 // EventHandle processes events between cloud and edge
 type EventHandle struct {
 	KeepaliveInterval int
